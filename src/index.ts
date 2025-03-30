@@ -46,8 +46,25 @@ export default {
     async fetch(request, env) {
         const url = new URL(request.url);
 
+        async function generateImage(prompt: string, model: string) {
+            const inputs = { prompt };
+
+            try {
+                const response = await env.AI.run(model, inputs);
+                return new Response(response, {
+                    headers: {
+                        "content-type": "image/png",
+                    },
+                });
+            } catch (error) {
+                return new Response("Error generating image", { status: 500 });
+            }
+        }
+
         if (request.method === "GET") {
             const format = url.searchParams.get("format");
+            const prompt = url.searchParams.get("prompt");
+            const model = url.searchParams.get("model");
 
             if (!format || (format !== "jsonstring" && format !== "image")) {
                 return new Response("Invalid or missing 'format' query parameter. Use 'jsonstring' or 'image'.", {
@@ -55,23 +72,25 @@ export default {
                 });
             }
 
-            const exampleResponse = {
-                message: "This is an example response for GET requests.",
-                usage: {
-                    format: "Specify 'jsonstring' or 'image' in the 'format' query parameter.",
-                },
-            };
-
             if (format === "jsonstring") {
+                const exampleResponse = {
+                    message: "This is an example response for GET requests.",
+                    usage: {
+                        format: "Specify 'jsonstring' or 'image' in the 'format' query parameter.",
+                        prompt: "Provide a 'prompt' query parameter for image generation.",
+                        model: "Provide a 'model' query parameter for image generation.",
+                    },
+                };
+
                 return new Response(JSON.stringify(exampleResponse), {
                     headers: { "content-type": "application/json" },
                 });
             } else if (format === "image") {
-                // Return a placeholder image or handle image generation for GET requests
-                const placeholderImage = "Placeholder image content"; // Replace with actual image data
-                return new Response(placeholderImage, {
-                    headers: { "content-type": "image/png" },
-                });
+                if (!prompt || !model) {
+                    return new Response("Missing 'prompt' or 'model' query parameters", { status: 400 });
+                }
+
+                return await generateImage(prompt, model);
             }
         }
 
@@ -89,19 +108,7 @@ export default {
                 return new Response("Missing 'prompt' or 'model' in request body", { status: 400 });
             }
 
-            const inputs = { prompt };
-
-            try {
-                const response = await env.AI.run(model, inputs);
-
-                return new Response(response, {
-                    headers: {
-                        "content-type": "image/png",
-                    },
-                });
-            } catch (error) {
-                return new Response("Error generating image", { status: 500 });
-            }
+            return await generateImage(prompt, model);
         }
 
         return new Response("Only GET and POST requests are allowed.", { status: 405 });
